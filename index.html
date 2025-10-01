@@ -18,12 +18,12 @@
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",Inter,Arial,sans-serif;
     font-weight:800; font-size:min(22vw,130px); letter-spacing:2px;
     color:#f3803d; text-shadow:0 0 14px rgba(243,128,61,0.40);
-    -webkit-font-smoothing:antialiased; user-select:none; transition:opacity .15s ease;
+    -webkit-font-smoothing:antialiased; user-select:none; transition:opacity .12s ease;
   }
   #label {
     position:absolute; top:calc(35% + min(15vw,90px)); left:50%; transform:translateX(-50%);
     display:flex; align-items:center; gap:min(6vw, 28px);
-    color:#e7e7e7; font-size:min(5.6vw,24px); opacity:.95; user-select:none; transition:opacity .15s ease;
+    color:#e7e7e7; font-size:min(5.6vw,24px); opacity:.95; user-select:none; transition:opacity .12s ease;
   }
 
   /* 键帽 */
@@ -60,14 +60,16 @@
   function tickTime(){ const d=new Date(); timeEl.textContent = pad(d.getHours())+":"+pad(d.getMinutes()); }
   tickTime(); setInterval(tickTime,1000);
 
-  // ===== 背景图：bg.jpg（可选） =====
+  // ===== 预载主屏图，仅在“眼睛动画”阶段使用 =====
   const bgImg = new Image(); let bgReady=false;
   bgImg.onload=()=>bgReady=true; bgImg.onerror=()=>bgReady=false;
-  bgImg.src="bg.jpg"; // 没有也能运行
+  bgImg.src="bg.jpg"; // 没有的话动画里就是完全黑底
 
-  // ===== 粒子（保持你当前参数） =====
-  const embers=[]; function randTri(){ return Math.random()+Math.random()-1; }
+  // ===== 粒子（与你当前一致） =====
+  const embers=[]; let spawnOn = true;
+  function randTri(){ return Math.random()+Math.random()-1; }
   function spawnEmber(){
+    if(!spawnOn) return;
     const w=cv.width,h=cv.height;
     const BASE_X=0.60, BASE_Y=0.78, SPREAD_X=0.32, SPREAD_Y=0.18;
     const x = w*BASE_X + randTri()*w*(SPREAD_X/2);
@@ -78,23 +80,23 @@
     const size = 1.7 + Math.random()*2.5;
     const hue  = 10 + Math.random()*8;
     embers.push({x,y,vx:vx0,vy:vy0,age:0,life,size,hue,wobble:(Math.random()*2+1)*(Math.random()<0.5?-1:1)});
+    // 继续下一粒子
+    const ms=700+Math.random()*2300;
+    setTimeout(spawnEmber, ms);
   }
-  (function schedule(){ const ms=700+Math.random()*2300; setTimeout(()=>{ spawnEmber(); schedule(); }, ms); })();
+  setTimeout(spawnEmber, 500);
 
-  // ===== 眼睛动画参数（扁椭圆 + 羽化 + 融合） =====
+  // ===== 眼睛动画参数（1 秒开眼 → 直接退出） =====
   const EYES = {
-    openDur: 900,   // 睁开 ms
-    holdDur: 420,   // 停留 ms
-    mergeDur: 200,  // 四眼 → 扁椭圆扫开全屏
-    fadeDur: 220,   // 最终淡出
-    rxScale: 0.17,  // 单个“眼缝”横向半径 = min(w,h)*rxScale
-    ryRatio: 0.32,  // 纵向半径 = rx*ryRatio （越小越扁）
-    feather: 26     // 羽化像素（边缘柔和程度）
+    openDur: 1000,  // 约 1s 睁开
+    feather: 26,    // 羽化
+    rxScale: 0.17,  // 横向半径比例
+    ryRatio: 0.30   // 越小越扁
   };
   function easeOutCubic(x){ return 1-Math.pow(1-x,3); }
   function clamp01(v){ return Math.max(0,Math.min(1,v)); }
 
-  // ===== 状态机 =====
+  // ===== 状态机：main（正常显示） → eyes（点击后动画） =====
   let mode="main", tStart=0;
   let last=performance.now();
   requestAnimationFrame(loop);
@@ -112,9 +114,9 @@
   }
 
   function drawMain(dt){
-    // 画背景（保持暗一些，突出粒子与文字）
-    if(bgReady) drawBG(cv.width,cv.height,0.92);
-    // 画粒子
+    // 只画“纯黑背景 + 粒子 + 文字”，不再画 bg.jpg
+    ctx.fillStyle="#000"; ctx.fillRect(0,0,cv.width,cv.height);
+
     for(let i=embers.length-1;i>=0;i--){
       const p=embers[i];
       p.age+=dt; p.vy+=20*dt; p.vx+=p.wobble*dt; p.x+=p.vx*dt; p.y+=p.vy*dt;
@@ -130,85 +132,67 @@
     }
   }
 
-  // 点击进入眼睛动画
+  // 点击：立刻隐藏元素 & 停止粒子生成 → 进入眼睛动画
   addEventListener("click", ()=>{
     if(mode!=="main") return;
     mode="eyes"; tStart=performance.now();
-    embers.length=0; timeEl.style.opacity=0; labelEl.style.opacity=0;
+    spawnOn = false;            // 停止新粒子
+    embers.length = 0;          // 清空现有粒子
+    timeEl.style.opacity = 0;   // 隐藏时间和文字
+    labelEl.style.opacity = 0;
   });
 
+  // 仅负责“黑底里用四条扁椭圆（羽化边）露出 bg.jpg”，持续 ~1s，然后关闭页面
   function drawEyes(now){
     const w=cv.width,h=cv.height,s=Math.min(w,h);
-    // 先完整画背景
-    if(bgReady) drawBG(w,h,1); else { ctx.fillStyle="#000"; ctx.fillRect(0,0,w,h); }
+    // 全黑底
+    ctx.fillStyle="#000"; ctx.fillRect(0,0,w,h);
 
-    // 再盖一层全黑 → 用 destination-out 以“羽化的扁椭圆”从黑里挖洞
+    // 先把 bg（主屏截图）绘在底层（被全黑盖住）
+    if(bgReady){
+      const iw=bgImg.naturalWidth||bgImg.width, ih=bgImg.naturalHeight||bgImg.height;
+      const r=Math.max(w/iw,h/ih), dw=iw*r, dh=ih*r, dx=(w-dw)/2, dy=(h-dh)/2;
+      ctx.drawImage(bgImg,dx,dy,dw,dh);
+    }
+
+    // 再盖一层黑 → 用 destination-out 以“羽化椭圆”挖洞
     ctx.save();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = "rgba(0,0,0,1)";
+    ctx.globalCompositeOperation="source-over";
+    ctx.fillStyle="rgba(0,0,0,1)";
     ctx.fillRect(0,0,w,h);
 
-    ctx.globalCompositeOperation = "destination-out";
-    const rx = s*EYES.rxScale;
-    const ry = rx*EYES.ryRatio;
-    const gapX = s*0.18, gapY = s*0.20;
-    const cx = w*0.5, cy = h*0.52;
-    const centers = [
-      [cx-gapX, cy-gapY], [cx+gapX, cy-gapY],
-      [cx-gapX, cy+gapY], [cx+gapX, cy+gapY],
-    ];
+    ctx.globalCompositeOperation="destination-out";
+    const rxBase=s*EYES.rxScale, ryBase=rxBase*EYES.ryRatio;
+    const gapX=s*0.18, gapY=s*0.20;
+    const cx=w*0.5, cy=h*0.52;
+    const centers=[[cx-gapX,cy-gapY],[cx+gapX,cy-gapY],[cx-gapX,cy+gapY],[cx+gapX,cy+gapY]];
 
-    const t = now - tStart;
-    const pOpen  = clamp01(t/EYES.openDur);
-    const openY  = Math.max(0.001, easeOutCubic(pOpen)); // 眼缝由 0→1
-    const pHold  = clamp01((t-EYES.openDur)/EYES.holdDur);
-    const pMerge = clamp01((t-EYES.openDur-EYES.holdDur)/EYES.mergeDur);
-    const pFade  = clamp01((t-EYES.openDur-EYES.holdDur-EYES.mergeDur)/EYES.fadeDur);
+    const t=now - tStart;
+    const pOpen=clamp01(t/EYES.openDur);
+    const openY=Math.max(0.001, easeOutCubic(pOpen)); // 0→1
 
-    // —— 四只扁椭圆：先实心挖洞，再用 shadowBlur 输出羽化
     centers.forEach(([x,y])=>{
-      // 实心洞
       ctx.save();
-      ctx.translate(x,y); ctx.scale(1,openY);
-      ctx.beginPath(); ctx.ellipse(0,0,rx,ry,0,0,Math.PI*2);
-      ctx.fillStyle="#fff"; ctx.fill(); // destination-out：把黑遮罩挖掉
+      ctx.translate(x,y);
+      ctx.scale(1, openY);
+
+      // 实心洞
+      ctx.beginPath();
+      ctx.ellipse(0,0,rxBase,ryBase,0,0,Math.PI*2);
+      ctx.fillStyle="#fff"; ctx.fill();
+
       // 羽化边
       ctx.shadowColor="#fff"; ctx.shadowBlur=EYES.feather;
-      ctx.fill(); // 再填一次，shadow 作为“柔边”继续挖淡化区域
+      ctx.fill();
+
       ctx.restore();
     });
-
-    // —— 四眼互相融合：用一个巨大且同样扁的椭圆快速扫开
-    if(pMerge>0){
-      const k=easeOutCubic(pMerge);
-      const R = Math.hypot(w,h) * (0.08 + 1.2*k);
-      ctx.save();
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, R, R*EYES.ryRatio, 0, 0, Math.PI*2);
-      // 同样做羽化边
-      ctx.fillStyle="#fff"; ctx.fill();
-      ctx.shadowColor="#fff"; ctx.shadowBlur=EYES.feather*1.1;
-      ctx.fill();
-      ctx.restore();
-    }
-
-    // 覆层完成
     ctx.restore();
 
-    // 最终淡出（整屏到黑）
-    if(pFade>0){
-      ctx.fillStyle="rgba(0,0,0,"+pFade+")";
-      ctx.fillRect(0,0,w,h);
+    // 到点就直接退出（不再额外停留）
+    if(pOpen>=1){
+      setTimeout(()=>{ window.close(); }, 30);
     }
-    if(pFade>=1){ setTimeout(()=>{ window.close(); }, 10); }
-  }
-
-  // 背景 cover；alpha 控整体亮度
-  function drawBG(w,h,alpha){
-    const img=bgImg; if(!bgReady){ ctx.fillStyle="#000"; ctx.fillRect(0,0,w,h); return; }
-    const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
-    const r=Math.max(w/iw,h/ih), dw=iw*r, dh=ih*r, dx=(w-dw)/2, dy=(h-dh)/2;
-    ctx.save(); ctx.globalAlpha=alpha; ctx.drawImage(img,dx,dy,dw,dh); ctx.restore();
   }
 </script>
 </body>
