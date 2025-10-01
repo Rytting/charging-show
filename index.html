@@ -188,12 +188,12 @@
   // ===== 眼睛动画参数 =====
   const EYES_CONFIG = {
     duration: 1400,       // 睁眼时长
-    featherSize: 50,      // 羽化边缘大小（更大让融合更自然）
-    eyeRadiusX: 0.25,     // 眼睛横向半径（更长）
-    eyeRadiusYRatio: 0.15, // 纵向半径比例（更扁，更像真实眼睛）
-    gapX: 0.12,           // 四个眼睛的间距（更近，容易融合）
-    gapY: 0.10,
-    expandScale: 2.8      // 最终扩张倍数（让眼睛最后扩大覆盖整个屏幕）
+    featherSize: 100,      // 羽化边缘大小（更大让融合更自然，也能覆盖边缘）
+    eyeRadiusX: 0.30,     // 眼睛横向半径（更长）
+    eyeRadiusYRatio: 0.12, // 纵向半径比例（更扁）
+    gapX: 0.10,           // 四个眼睛的间距（更近）
+    gapY: 0.08,
+    expandScale: 5.0      // 最终扩张倍数（增大到4.5倍，确保覆盖全屏）
   };
   
   function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
