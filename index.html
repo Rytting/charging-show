@@ -4,40 +4,51 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
 <title>Charging Show</title>
-
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-
 <style>
   html, body { margin:0; height:100%; background:#000; overflow:hidden; }
   #wrap { position:relative; width:100%; height:100%; }
 
-  /* TIME —— 33%，#f3803d */
   #time {
     position:absolute; top:33%; left:50%; transform:translate(-50%,-60%);
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",Inter,Arial,sans-serif;
     font-weight:800; font-size:min(22vw,130px); letter-spacing:2px;
     color:#f3803d; text-shadow:0 0 14px rgba(243,128,61,0.40);
-    -webkit-font-smoothing:antialiased; user-select:none; transition:opacity .12s ease;
+    -webkit-font-smoothing:antialiased; user-select:none; transition:opacity .2s ease;
   }
   #label {
     position:absolute; top:calc(35% + min(15vw,90px)); left:50%; transform:translateX(-50%);
     display:flex; align-items:center; gap:min(6vw, 28px);
-    color:#e7e7e7; font-size:min(5.6vw,24px); opacity:.95; user-select:none; transition:opacity .12s ease;
+    color:#e7e7e7; font-size:min(5.6vw,24px); opacity:.95; user-select:none; transition:opacity .2s ease;
   }
 
-  /* 键帽 */
   #key{
     display:inline-block; width:26px; height:26px; line-height:26px; border-radius:5px;
     background:linear-gradient(#4b4b4b,#2f2f2f); border:1px solid #0e0e0e;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 -2px 0 rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.06), 0 2px 6px rgba(0,0,0,.55);
-    color:#e9e9e9; font-weight:700; font-size:14px; text-align:center; letter-spacing:.2px; text-shadow:0 -1px 0 rgba(0,0,0,.6);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 -2px 0 rgba(0,0,0,.55), 
+                0 1px 0 rgba(255,255,255,.06), 0 2px 6px rgba(0,0,0,.55);
+    color:#e9e9e9; font-weight:700; font-size:14px; text-align:center; 
+    letter-spacing:.2px; text-shadow:0 -1px 0 rgba(0,0,0,.6);
     font-family:ui-monospace,SFMono-Regular,Menlo,monospace; position:relative; user-select:none;
   }
-  #key::before{ content:""; position:absolute; inset:2px; border-radius:4px; border:1px solid rgba(255,255,255,.10); box-shadow:inset 0 0 0 1px rgba(0,0,0,.50); }
-  #key::after{ content:""; position:absolute; left:3px; top:3px; width:55%; height:42%; border-radius:4px; background:radial-gradient(ellipse at top left, rgba(255,255,255,.18), rgba(255,255,255,0) 60%); pointer-events:none; }
+  #key::before{ 
+    content:""; position:absolute; inset:2px; border-radius:4px; 
+    border:1px solid rgba(255,255,255,.10); box-shadow:inset 0 0 0 1px rgba(0,0,0,.50); 
+  }
+  #key::after{ 
+    content:""; position:absolute; left:3px; top:3px; width:55%; height:42%; border-radius:4px; 
+    background:radial-gradient(ellipse at top left, rgba(255,255,255,.18), rgba(255,255,255,0) 60%); 
+    pointer-events:none; 
+  }
 
   #cv { position:absolute; inset:0; display:block; }
+  
+  /* 调试信息 */
+  #debug { 
+    position:absolute; bottom:10px; left:10px; color:#666; font-size:12px; 
+    font-family:monospace; opacity:0.5; 
+  }
 </style>
 </head>
 <body>
@@ -45,153 +56,219 @@
   <canvas id="cv"></canvas>
   <div id="time">10:20</div>
   <div id="label"><span id="key">E</span><span>Wake Up</span></div>
+  <div id="debug">点击任意位置开始</div>
 </div>
 
 <script>
-  // ===== 画布 & 时间 =====
   const cv = document.getElementById("cv");
-  const ctx = cv.getContext("2d",{alpha:true});
-  function resize(){ cv.width=innerWidth; cv.height=innerHeight; }
-  resize(); addEventListener("resize", resize);
+  const ctx = cv.getContext("2d", {alpha: false}); // 改为不透明
+  
+  function resize(){ 
+    cv.width = innerWidth; 
+    cv.height = innerHeight; 
+  }
+  resize(); 
+  addEventListener("resize", resize);
 
   const timeEl = document.getElementById("time");
   const labelEl = document.getElementById("label");
-  const pad = n => (n<10?("0"+n):n);
-  function tickTime(){ const d=new Date(); timeEl.textContent = pad(d.getHours())+":"+pad(d.getMinutes()); }
-  tickTime(); setInterval(tickTime,1000);
+  const debugEl = document.getElementById("debug");
+  
+  const pad = n => (n < 10 ? ("0" + n) : n);
+  function tickTime(){ 
+    const d = new Date(); 
+    timeEl.textContent = pad(d.getHours()) + ":" + pad(d.getMinutes()); 
+  }
+  tickTime(); 
+  setInterval(tickTime, 1000);
 
-  // ===== 预载主屏图，仅在“眼睛动画”阶段使用 =====
-  const bgImg = new Image(); let bgReady=false;
-  bgImg.onload=()=>bgReady=true; bgImg.onerror=()=>bgReady=false;
-  bgImg.src="bg.jpg"; // 没有的话动画里就是完全黑底
+  // ===== 图片加载（你需要替换这里的 base64 或者图片路径）=====
+  const bgImg = new Image(); 
+  let bgReady = false;
+  
+  bgImg.onload = () => {
+    bgReady = true;
+    debugEl.textContent = "图片已加载 ✓";
+    console.log("背景图片加载成功");
+  };
+  
+  bgImg.onerror = () => {
+    bgReady = false;
+    debugEl.textContent = "图片加载失败 ✗";
+    console.error("背景图片加载失败");
+  };
+  
+  // 方式1: 使用相对路径（需要图片文件在同目录）
+  bgImg.src = "bg.jpg";
+  
+  // 方式2: 使用 base64（推荐，把截图转成 base64 粘贴到这里）
+  // bgImg.src = "data:image/jpeg;base64,/9j/4AAQSkZJRg..."; // 你的 base64 数据
 
-  // ===== 粒子（与你当前一致） =====
-  const embers=[]; let spawnOn = true;
-  function randTri(){ return Math.random()+Math.random()-1; }
+  // ===== 粒子系统 =====
+  const embers = []; 
+  let spawnOn = true;
+  
+  function randTri(){ return Math.random() + Math.random() - 1; }
+  
   function spawnEmber(){
-    if(!spawnOn) return;
-    const w=cv.width,h=cv.height;
-    const BASE_X=0.60, BASE_Y=0.78, SPREAD_X=0.32, SPREAD_Y=0.18;
-    const x = w*BASE_X + randTri()*w*(SPREAD_X/2);
-    const y = h*BASE_Y + randTri()*h*(SPREAD_Y/2);
-    const vy0 = -(120 + Math.random()*110);
-    const vx0 = (Math.random()-0.5) * 40;
-    const life = 2.6 + Math.random()*1.8;
-    const size = 1.7 + Math.random()*2.5;
-    const hue  = 10 + Math.random()*8;
-    embers.push({x,y,vx:vx0,vy:vy0,age:0,life,size,hue,wobble:(Math.random()*2+1)*(Math.random()<0.5?-1:1)});
-    // 继续下一粒子
-    const ms=700+Math.random()*2300;
+    if (!spawnOn) return;
+    const w = cv.width, h = cv.height;
+    const BASE_X = 0.60, BASE_Y = 0.78, SPREAD_X = 0.32, SPREAD_Y = 0.18;
+    const x = w * BASE_X + randTri() * w * (SPREAD_X / 2);
+    const y = h * BASE_Y + randTri() * h * (SPREAD_Y / 2);
+    const vy0 = -(120 + Math.random() * 110);
+    const vx0 = (Math.random() - 0.5) * 40;
+    const life = 2.6 + Math.random() * 1.8;
+    const size = 1.7 + Math.random() * 2.5;
+    const hue = 10 + Math.random() * 8;
+    
+    embers.push({
+      x, y, vx: vx0, vy: vy0, age: 0, life, size, hue,
+      wobble: (Math.random() * 2 + 1) * (Math.random() < 0.5 ? -1 : 1)
+    });
+    
+    const ms = 700 + Math.random() * 2300;
     setTimeout(spawnEmber, ms);
   }
   setTimeout(spawnEmber, 500);
 
-  // ===== 眼睛动画参数（1 秒开眼 → 直接退出） =====
+  // ===== 眼睛动画参数 =====
   const EYES = {
-    openDur: 1000,  // 约 1s 睁开
-    feather: 26,    // 羽化
-    rxScale: 0.17,  // 横向半径比例
-    ryRatio: 0.30   // 越小越扁
+    openDur: 1200,   // 1.2秒睁开
+    feather: 30,     // 羽化边缘
+    rxScale: 0.15,   // 横向半径
+    ryRatio: 0.35    // 纵向比例
   };
-  function easeOutCubic(x){ return 1-Math.pow(1-x,3); }
-  function clamp01(v){ return Math.max(0,Math.min(1,v)); }
+  
+  function easeOutCubic(x){ return 1 - Math.pow(1 - x, 3); }
+  function clamp01(v){ return Math.max(0, Math.min(1, v)); }
 
-  // ===== 状态机：main（正常显示） → eyes（点击后动画） =====
-  let mode="main", tStart=0;
-  let last=performance.now();
+  // ===== 状态机 =====
+  let mode = "main", tStart = 0;
+  let last = performance.now();
+  
   requestAnimationFrame(loop);
 
   function loop(now){
-    const dt=Math.min(0.033,(now-last)/1000); last=now;
-    ctx.clearRect(0,0,cv.width,cv.height);
+    const dt = Math.min(0.033, (now - last) / 1000); 
+    last = now;
 
-    if(mode==="main"){
+    if (mode === "main"){
       drawMain(dt);
-    }else{
+    } else {
       drawEyes(now);
     }
     requestAnimationFrame(loop);
   }
 
   function drawMain(dt){
-    // 只画“纯黑背景 + 粒子 + 文字”，不再画 bg.jpg
-    ctx.fillStyle="#000"; ctx.fillRect(0,0,cv.width,cv.height);
+    // 纯黑背景
+    ctx.fillStyle = "#000"; 
+    ctx.fillRect(0, 0, cv.width, cv.height);
 
-    for(let i=embers.length-1;i>=0;i--){
-      const p=embers[i];
-      p.age+=dt; p.vy+=20*dt; p.vx+=p.wobble*dt; p.x+=p.vx*dt; p.y+=p.vy*dt;
-      const k=Math.max(0,1-p.age/p.life);
-      const alpha=0.9*Math.pow(k,0.7);
-      const light=45+Math.sin(p.age*18)*5;
-      ctx.save(); ctx.globalCompositeOperation="lighter";
-      ctx.shadowColor="hsla("+p.hue+",100%,60%,"+alpha+")";
-      ctx.shadowBlur=25;
-      ctx.beginPath(); ctx.fillStyle="hsla("+p.hue+",100%,"+light+"%,"+alpha+")";
-      ctx.arc(p.x,p.y,p.size*(0.8+0.7*k),0,Math.PI*2); ctx.fill(); ctx.restore();
-      if(p.age>=p.life) embers.splice(i,1);
+    // 绘制粒子
+    for (let i = embers.length - 1; i >= 0; i--){
+      const p = embers[i];
+      p.age += dt; 
+      p.vy += 20 * dt; 
+      p.vx += p.wobble * dt; 
+      p.x += p.vx * dt; 
+      p.y += p.vy * dt;
+      
+      const k = Math.max(0, 1 - p.age / p.life);
+      const alpha = 0.9 * Math.pow(k, 0.7);
+      const light = 45 + Math.sin(p.age * 18) * 5;
+      
+      ctx.save(); 
+      ctx.globalCompositeOperation = "lighter";
+      ctx.shadowColor = "hsla(" + p.hue + ",100%,60%," + alpha + ")";
+      ctx.shadowBlur = 25;
+      ctx.beginPath(); 
+      ctx.fillStyle = "hsla(" + p.hue + ",100%," + light + "%," + alpha + ")";
+      ctx.arc(p.x, p.y, p.size * (0.8 + 0.7 * k), 0, Math.PI * 2); 
+      ctx.fill(); 
+      ctx.restore();
+      
+      if (p.age >= p.life) embers.splice(i, 1);
     }
   }
 
-  // 点击：立刻隐藏元素 & 停止粒子生成 → 进入眼睛动画
-  addEventListener("click", ()=>{
-    if(mode!=="main") return;
-    mode="eyes"; tStart=performance.now();
-    spawnOn = false;            // 停止新粒子
-    embers.length = 0;          // 清空现有粒子
-    timeEl.style.opacity = 0;   // 隐藏时间和文字
+  // ===== 点击触发 =====
+  addEventListener("click", () => {
+    if (mode !== "main") return;
+    if (!bgReady) {
+      alert("背景图片还没加载完成，请稍等或检查图片路径");
+      return;
+    }
+    
+    mode = "eyes"; 
+    tStart = performance.now();
+    spawnOn = false;
+    embers.length = 0;
+    timeEl.style.opacity = 0;
     labelEl.style.opacity = 0;
+    debugEl.style.opacity = 0;
   });
 
-  // 仅负责“黑底里用四条扁椭圆（羽化边）露出 bg.jpg”，持续 ~1s，然后关闭页面
   function drawEyes(now){
-    const w=cv.width,h=cv.height,s=Math.min(w,h);
-    // 全黑底
-    ctx.fillStyle="#000"; ctx.fillRect(0,0,w,h);
-
-    // 先把 bg（主屏截图）绘在底层（被全黑盖住）
-    if(bgReady){
-      const iw=bgImg.naturalWidth||bgImg.width, ih=bgImg.naturalHeight||bgImg.height;
-      const r=Math.max(w/iw,h/ih), dw=iw*r, dh=ih*r, dx=(w-dw)/2, dy=(h-dh)/2;
-      ctx.drawImage(bgImg,dx,dy,dw,dh);
+    const w = cv.width, h = cv.height, s = Math.min(w, h);
+    
+    // 先画背景图片（铺满整个屏幕）
+    if (bgReady){
+      const iw = bgImg.naturalWidth || bgImg.width;
+      const ih = bgImg.naturalHeight || bgImg.height;
+      const r = Math.max(w / iw, h / ih);
+      const dw = iw * r, dh = ih * r;
+      const dx = (w - dw) / 2, dy = (h - dh) / 2;
+      ctx.drawImage(bgImg, dx, dy, dw, dh);
     }
 
-    // 再盖一层黑 → 用 destination-out 以“羽化椭圆”挖洞
+    // 盖一层完全不透明的黑色
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, w, h);
+
+    // 用 destination-out 挖四个椭圆洞
     ctx.save();
-    ctx.globalCompositeOperation="source-over";
-    ctx.fillStyle="rgba(0,0,0,1)";
-    ctx.fillRect(0,0,w,h);
+    ctx.globalCompositeOperation = "destination-out";
+    
+    const rxBase = s * EYES.rxScale;
+    const ryBase = rxBase * EYES.ryRatio;
+    const gapX = s * 0.18, gapY = s * 0.20;
+    const cx = w * 0.5, cy = h * 0.52;
+    const centers = [
+      [cx - gapX, cy - gapY], 
+      [cx + gapX, cy - gapY],
+      [cx - gapX, cy + gapY], 
+      [cx + gapX, cy + gapY]
+    ];
 
-    ctx.globalCompositeOperation="destination-out";
-    const rxBase=s*EYES.rxScale, ryBase=rxBase*EYES.ryRatio;
-    const gapX=s*0.18, gapY=s*0.20;
-    const cx=w*0.5, cy=h*0.52;
-    const centers=[[cx-gapX,cy-gapY],[cx+gapX,cy-gapY],[cx-gapX,cy+gapY],[cx+gapX,cy+gapY]];
+    const t = now - tStart;
+    const pOpen = clamp01(t / EYES.openDur);
+    const openY = Math.max(0.001, easeOutCubic(pOpen));
 
-    const t=now - tStart;
-    const pOpen=clamp01(t/EYES.openDur);
-    const openY=Math.max(0.001, easeOutCubic(pOpen)); // 0→1
-
-    centers.forEach(([x,y])=>{
+    centers.forEach(([x, y]) => {
       ctx.save();
-      ctx.translate(x,y);
+      ctx.translate(x, y);
       ctx.scale(1, openY);
 
       // 实心洞
       ctx.beginPath();
-      ctx.ellipse(0,0,rxBase,ryBase,0,0,Math.PI*2);
-      ctx.fillStyle="#fff"; ctx.fill();
+      ctx.ellipse(0, 0, rxBase, ryBase, 0, 0, Math.PI * 2);
+      ctx.fillStyle = "#fff";
+      ctx.fill();
 
-      // 羽化边
-      ctx.shadowColor="#fff"; ctx.shadowBlur=EYES.feather;
+      // 羽化边缘
+      ctx.shadowColor = "#fff";
+      ctx.shadowBlur = EYES.feather;
       ctx.fill();
 
       ctx.restore();
     });
     ctx.restore();
 
-    // 到点就直接退出（不再额外停留）
-    if(pOpen>=1){
-      setTimeout(()=>{ window.close(); }, 30);
+    // 动画完成后关闭页面
+    if (pOpen >= 1){
+      setTimeout(() => { window.close(); }, 100);
     }
   }
 </script>
