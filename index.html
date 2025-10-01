@@ -133,31 +133,31 @@
   };
 
   // 方式1: 使用相对路径（需要bg.jpg在同目录）
-  bgImg.src = "bg.jpg";
+  // bgImg.src = "bg.jpg";
   
   // 方式2: 使用 base64（把截图转成 base64 粘贴这里）
   // bgImg.src = "data:image/jpeg;base64,/9j/4AAQ...";
   
   // 方式3: 临时测试背景（模拟星际拓荒营火场景）
-  //bgImg.src = "data:image/svg+xml," + encodeURIComponent(`
-  //   <svg xmlns="http://www.w3.org/2000/svg" width="400" height="800">
-  //     <defs>
-  //       <radialGradient id="fire" cx="50%" cy="70%">
-  //         <stop offset="0%" style="stop-color:#ff6b35"/>
-  //         <stop offset="50%" style="stop-color:#f7931e"/>
-  //         <stop offset="100%" style="stop-color:#1a1a1a"/>
-  //       </radialGradient>
-  //     </defs>
-  //     <rect width="400" height="800" fill="#0a0a0a"/>
-  //     <ellipse cx="200" cy="560" rx="120" ry="80" fill="url(#fire)" opacity="0.8"/>
-  //     <text x="200" y="400" font-size="32" fill="#e94560" text-anchor="middle" font-family="Arial">
-  //       营火场景
-  //     </text>
-  //     <text x="200" y="440" font-size="18" fill="#888" text-anchor="middle" font-family="Arial">
-  //       (替换成你的手机截图)
-  //     </text>
-  //   </svg>
-  // `);
+  bgImg.src = "data:image/svg+xml," + encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="400" height="800">
+      <defs>
+        <radialGradient id="fire" cx="50%" cy="70%">
+          <stop offset="0%" style="stop-color:#ff6b35"/>
+          <stop offset="50%" style="stop-color:#f7931e"/>
+          <stop offset="100%" style="stop-color:#1a1a1a"/>
+        </radialGradient>
+      </defs>
+      <rect width="400" height="800" fill="#0a0a0a"/>
+      <ellipse cx="200" cy="560" rx="120" ry="80" fill="url(#fire)" opacity="0.8"/>
+      <text x="200" y="400" font-size="32" fill="#e94560" text-anchor="middle" font-family="Arial">
+        营火场景
+      </text>
+      <text x="200" y="440" font-size="18" fill="#888" text-anchor="middle" font-family="Arial">
+        (替换成你的手机截图)
+      </text>
+    </svg>
+  `);
 
   // ===== 粒子系统（火花效果）=====
   const embers = []; 
@@ -187,12 +187,13 @@
 
   // ===== 眼睛动画参数 =====
   const EYES_CONFIG = {
-    duration: 1200,      // 睁眼时长
-    featherSize: 35,     // 羽化边缘大小
-    eyeRadiusX: 0.14,    // 眼睛横向半径（相对屏幕）
-    eyeRadiusYRatio: 0.4, // 纵向半径比例（越小越扁）
-    gapX: 0.18,          // 四个眼睛的间距
-    gapY: 0.20
+    duration: 1400,       // 睁眼时长
+    featherSize: 50,      // 羽化边缘大小（更大让融合更自然）
+    eyeRadiusX: 0.25,     // 眼睛横向半径（更长）
+    eyeRadiusYRatio: 0.15, // 纵向半径比例（更扁，更像真实眼睛）
+    gapX: 0.12,           // 四个眼睛的间距（更近，容易融合）
+    gapY: 0.10,
+    expandScale: 2.8      // 最终扩张倍数（让眼睛最后扩大覆盖整个屏幕）
   };
   
   function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
@@ -253,7 +254,7 @@
     }
   }
 
-  // 睁眼状态：用 destination-out 挖四个椭圆洞
+  // 睁眼状态：用 destination-out 挖四个椭圆洞，逐渐扩大并融合
   function drawOpeningState(now){
     const w = maskCv.width, h = maskCv.height;
     const s = Math.min(w, h);
@@ -265,16 +266,24 @@
     // 计算睁眼进度
     const elapsed = now - openStartTime;
     const progress = clamp01(elapsed / EYES_CONFIG.duration);
-    const openScale = easeOutCubic(progress); // 0 -> 1
+    
+    // 分两个阶段：
+    // 0-0.6: 睁眼（纵向打开）
+    // 0.6-1.0: 扩张并融合（整体放大）
+    const openPhase = Math.min(1, progress / 0.6);
+    const expandPhase = Math.max(0, (progress - 0.6) / 0.4);
+    
+    const openScale = easeOutCubic(openPhase);  // 纵向睁开
+    const expandScale = 1 + (EYES_CONFIG.expandScale - 1) * easeOutCubic(expandPhase); // 整体扩张
     
     // 用 destination-out 模式挖洞
     maskCtx.save();
     maskCtx.globalCompositeOperation = "destination-out";
     
-    const rxBase = s * EYES_CONFIG.eyeRadiusX;
+    const rxBase = s * EYES_CONFIG.eyeRadiusX * expandScale;
     const ryBase = rxBase * EYES_CONFIG.eyeRadiusYRatio;
-    const gapX = s * EYES_CONFIG.gapX;
-    const gapY = s * EYES_CONFIG.gapY;
+    const gapX = s * EYES_CONFIG.gapX / expandScale; // 间距随扩张缩小，让眼睛靠近
+    const gapY = s * EYES_CONFIG.gapY / expandScale;
     const cx = w * 0.5, cy = h * 0.52;
     
     // 四个眼睛的位置
@@ -296,9 +305,9 @@
       maskCtx.fillStyle = "#fff";
       maskCtx.fill();
       
-      // 添加羽化效果（模糊边缘）
+      // 添加羽化效果（模糊边缘，让四个眼睛容易融合）
       maskCtx.shadowColor = "#fff";
-      maskCtx.shadowBlur = EYES_CONFIG.featherSize;
+      maskCtx.shadowBlur = EYES_CONFIG.featherSize * expandScale;
       maskCtx.fill();
       
       maskCtx.restore();
@@ -342,4 +351,3 @@
 </script>
 </body>
 </html>
-
