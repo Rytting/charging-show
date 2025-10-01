@@ -133,31 +133,31 @@
   };
 
   // 方式1: 使用相对路径（需要bg.jpg在同目录）
-  // bgImg.src = "bg.jpg";
+  bgImg.src = "bg.jpg";
   
   // 方式2: 使用 base64（把截图转成 base64 粘贴这里）
   // bgImg.src = "data:image/jpeg;base64,/9j/4AAQ...";
   
   // 方式3: 临时测试背景（模拟星际拓荒营火场景）
-  bgImg.src = "data:image/svg+xml," + encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="400" height="800">
-      <defs>
-        <radialGradient id="fire" cx="50%" cy="70%">
-          <stop offset="0%" style="stop-color:#ff6b35"/>
-          <stop offset="50%" style="stop-color:#f7931e"/>
-          <stop offset="100%" style="stop-color:#1a1a1a"/>
-        </radialGradient>
-      </defs>
-      <rect width="400" height="800" fill="#0a0a0a"/>
-      <ellipse cx="200" cy="560" rx="120" ry="80" fill="url(#fire)" opacity="0.8"/>
-      <text x="200" y="400" font-size="32" fill="#e94560" text-anchor="middle" font-family="Arial">
-        营火场景
-      </text>
-      <text x="200" y="440" font-size="18" fill="#888" text-anchor="middle" font-family="Arial">
-        (替换成你的手机截图)
-      </text>
-    </svg>
-  `);
+  //bgImg.src = "data:image/svg+xml," + encodeURIComponent(`
+  //   <svg xmlns="http://www.w3.org/2000/svg" width="400" height="800">
+  //     <defs>
+  //       <radialGradient id="fire" cx="50%" cy="70%">
+  //         <stop offset="0%" style="stop-color:#ff6b35"/>
+  //         <stop offset="50%" style="stop-color:#f7931e"/>
+  //         <stop offset="100%" style="stop-color:#1a1a1a"/>
+  //       </radialGradient>
+  //     </defs>
+  //     <rect width="400" height="800" fill="#0a0a0a"/>
+  //     <ellipse cx="200" cy="560" rx="120" ry="80" fill="url(#fire)" opacity="0.8"/>
+  //     <text x="200" y="400" font-size="32" fill="#e94560" text-anchor="middle" font-family="Arial">
+  //       营火场景
+  //     </text>
+  //     <text x="200" y="440" font-size="18" fill="#888" text-anchor="middle" font-family="Arial">
+  //       (替换成你的手机截图)
+  //     </text>
+  //   </svg>
+  // `);
 
   // ===== 粒子系统（火花效果）=====
   const embers = []; 
@@ -189,11 +189,11 @@
   const EYES_CONFIG = {
     duration: 1400,       // 睁眼时长
     featherSize: 100,      // 羽化边缘大小（更大让融合更自然，也能覆盖边缘）
-    eyeRadiusX: 0.30,     // 眼睛横向半径（更长）
+    eyeRadiusX: 0.50,     // 眼睛横向半径（更长）
     eyeRadiusYRatio: 0.12, // 纵向半径比例（更扁）
     gapX: 0.10,           // 四个眼睛的间距（更近）
     gapY: 0.08,
-    expandScale: 5.0      // 最终扩张倍数（增大到4.5倍，确保覆盖全屏）
+    expandScale: 500.0      // 最终扩张倍数（增大到4.5倍，确保覆盖全屏）
   };
   
   function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
@@ -365,3 +365,4 @@
 </script>
 </body>
 </html>
+
