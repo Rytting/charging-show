@@ -7,20 +7,40 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <style>
-  html, body { margin:0; height:100%; background:#000; overflow:hidden; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; background:#000; overflow:hidden; }
+  
   #wrap { position:relative; width:100%; height:100%; }
+  
+  /* 背景层：你的手机截图 */
+  #bgLayer { 
+    position:absolute; inset:0; 
+    background-size:cover; background-position:center; 
+    /* 默认用渐变，等图片加载后会被替换 */
+    background-image: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  }
+  
+  /* 遮罩层：纯黑色 canvas，用来挖洞 */
+  #maskCanvas { position:absolute; inset:0; }
+  
+  /* 粒子层 */
+  #particleCanvas { position:absolute; inset:0; pointer-events:none; }
 
+  /* 时间显示 */
   #time {
     position:absolute; top:33%; left:50%; transform:translate(-50%,-60%);
-    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",Inter,Arial,sans-serif;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",Inter,Arial,sans-serif;
     font-weight:800; font-size:min(22vw,130px); letter-spacing:2px;
     color:#f3803d; text-shadow:0 0 14px rgba(243,128,61,0.40);
-    -webkit-font-smoothing:antialiased; user-select:none; transition:opacity .2s ease;
+    -webkit-font-smoothing:antialiased; user-select:none; 
+    transition:opacity .3s ease; pointer-events:none;
   }
+  
   #label {
     position:absolute; top:calc(35% + min(15vw,90px)); left:50%; transform:translateX(-50%);
     display:flex; align-items:center; gap:min(6vw, 28px);
-    color:#e7e7e7; font-size:min(5.6vw,24px); opacity:.95; user-select:none; transition:opacity .2s ease;
+    color:#e7e7e7; font-size:min(5.6vw,24px); opacity:.95; user-select:none;
+    transition:opacity .3s ease; pointer-events:none;
   }
 
   #key{
@@ -30,7 +50,7 @@
                 0 1px 0 rgba(255,255,255,.06), 0 2px 6px rgba(0,0,0,.55);
     color:#e9e9e9; font-weight:700; font-size:14px; text-align:center; 
     letter-spacing:.2px; text-shadow:0 -1px 0 rgba(0,0,0,.6);
-    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; position:relative; user-select:none;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; position:relative;
   }
   #key::before{ 
     content:""; position:absolute; inset:2px; border-radius:4px; 
@@ -38,43 +58,54 @@
   }
   #key::after{ 
     content:""; position:absolute; left:3px; top:3px; width:55%; height:42%; border-radius:4px; 
-    background:radial-gradient(ellipse at top left, rgba(255,255,255,.18), rgba(255,255,255,0) 60%); 
-    pointer-events:none; 
+    background:radial-gradient(ellipse at top left, rgba(255,255,255,.18), transparent 60%); 
   }
 
-  #cv { position:absolute; inset:0; display:block; }
-  
-  /* 调试信息 */
   #debug { 
-    position:absolute; bottom:10px; left:10px; color:#666; font-size:12px; 
-    font-family:monospace; opacity:0.5; 
+    position:absolute; bottom:10px; left:10px; 
+    color:#888; font-size:11px; font-family:monospace; 
+    background:rgba(0,0,0,.5); padding:4px 8px; border-radius:4px;
+    pointer-events:none;
   }
 </style>
 </head>
 <body>
 <div id="wrap">
-  <canvas id="cv"></canvas>
+  <!-- 背景层 -->
+  <div id="bgLayer"></div>
+  
+  <!-- 遮罩层 canvas -->
+  <canvas id="maskCanvas"></canvas>
+  
+  <!-- 粒子层 canvas -->
+  <canvas id="particleCanvas"></canvas>
+  
+  <!-- UI 层 -->
   <div id="time">10:20</div>
   <div id="label"><span id="key">E</span><span>Wake Up</span></div>
-  <div id="debug">点击任意位置开始</div>
+  <div id="debug">加载中...</div>
 </div>
 
 <script>
-  const cv = document.getElementById("cv");
-  const ctx = cv.getContext("2d", {alpha: false}); // 改为不透明
-  
+  const bgLayer = document.getElementById("bgLayer");
+  const maskCv = document.getElementById("maskCanvas");
+  const maskCtx = maskCv.getContext("2d");
+  const particleCv = document.getElementById("particleCanvas");
+  const particleCtx = particleCv.getContext("2d", {alpha:true});
+  const timeEl = document.getElementById("time");
+  const labelEl = document.getElementById("label");
+  const debugEl = document.getElementById("debug");
+
+  // 调整画布尺寸
   function resize(){ 
-    cv.width = innerWidth; 
-    cv.height = innerHeight; 
+    maskCv.width = particleCv.width = innerWidth; 
+    maskCv.height = particleCv.height = innerHeight; 
   }
   resize(); 
   addEventListener("resize", resize);
 
-  const timeEl = document.getElementById("time");
-  const labelEl = document.getElementById("label");
-  const debugEl = document.getElementById("debug");
-  
-  const pad = n => (n < 10 ? ("0" + n) : n);
+  // 时间更新
+  const pad = n => (n < 10 ? "0" + n : n);
   function tickTime(){ 
     const d = new Date(); 
     timeEl.textContent = pad(d.getHours()) + ":" + pad(d.getMinutes()); 
@@ -82,60 +113,63 @@
   tickTime(); 
   setInterval(tickTime, 1000);
 
-  // ===== 图片加载（你需要替换这里的 base64 或者图片路径）=====
-  const bgImg = new Image(); 
-  let bgReady = false;
+  // ===== 加载背景图片 =====
+  let bgImageLoaded = false;
+  const bgImg = new Image();
   
   bgImg.onload = () => {
-    bgReady = true;
-    debugEl.textContent = `图片已加载 ✓ (${bgImg.width}x${bgImg.height})`;
-    console.log("背景图片加载成功", bgImg.width, bgImg.height);
+    bgImageLoaded = true;
+    // 用加载的图片替换背景
+    bgLayer.style.backgroundImage = `url(${bgImg.src})`;
+    debugEl.textContent = `✓ 图片已加载 | 点击屏幕开始`;
+    console.log("背景加载成功", bgImg.naturalWidth, bgImg.naturalHeight);
   };
   
-  bgImg.onerror = () => {
-    bgReady = false;
-    debugEl.textContent = "图片加载失败 ✗ 使用测试背景";
-    console.error("背景图片加载失败");
+  bgImg.onerror = (e) => {
+    console.error("背景加载失败", e);
+    debugEl.textContent = "⚠ 图片加载失败，使用默认背景";
+    // 失败也允许继续，只是用默认渐变背景
+    bgImageLoaded = true; 
   };
-  
-  // 方式1: 使用相对路径（需要图片文件在同目录）
+
+  // 方式1: 使用相对路径（需要bg.jpg在同目录）
   // bgImg.src = "bg.jpg";
   
-  // 方式2: 使用 base64（推荐，把截图转成 base64 粘贴到这里）
-  // bgImg.src = "data:image/jpeg;base64,/9j/4AAQSkZJRg...";
+  // 方式2: 使用 base64（把截图转成 base64 粘贴这里）
+  // bgImg.src = "data:image/jpeg;base64,/9j/4AAQ...";
   
-  // 方式3: 暂时用测试图片（先测试动画效果）
+  // 方式3: 临时测试背景（模拟星际拓荒营火场景）
   bgImg.src = "data:image/svg+xml," + encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" width="400" height="800">
       <defs>
-        <linearGradient id="g" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" style="stop-color:#1a1a2e"/>
-          <stop offset="50%" style="stop-color:#16213e"/>
-          <stop offset="100%" style="stop-color:#0f3460"/>
-        </linearGradient>
+        <radialGradient id="fire" cx="50%" cy="70%">
+          <stop offset="0%" style="stop-color:#ff6b35"/>
+          <stop offset="50%" style="stop-color:#f7931e"/>
+          <stop offset="100%" style="stop-color:#1a1a1a"/>
+        </radialGradient>
       </defs>
-      <rect width="400" height="800" fill="url(#g)"/>
-      <text x="200" y="400" font-size="48" fill="#e94560" text-anchor="middle" font-family="Arial">
-        测试背景
+      <rect width="400" height="800" fill="#0a0a0a"/>
+      <ellipse cx="200" cy="560" rx="120" ry="80" fill="url(#fire)" opacity="0.8"/>
+      <text x="200" y="400" font-size="32" fill="#e94560" text-anchor="middle" font-family="Arial">
+        营火场景
       </text>
-      <text x="200" y="450" font-size="24" fill="#aaa" text-anchor="middle" font-family="Arial">
-        替换成你的截图
+      <text x="200" y="440" font-size="18" fill="#888" text-anchor="middle" font-family="Arial">
+        (替换成你的手机截图)
       </text>
     </svg>
   `);
 
-  // ===== 粒子系统 =====
+  // ===== 粒子系统（火花效果）=====
   const embers = []; 
-  let spawnOn = true;
+  let spawnActive = true;
   
   function randTri(){ return Math.random() + Math.random() - 1; }
   
   function spawnEmber(){
-    if (!spawnOn) return;
-    const w = cv.width, h = cv.height;
-    const BASE_X = 0.60, BASE_Y = 0.78, SPREAD_X = 0.32, SPREAD_Y = 0.18;
-    const x = w * BASE_X + randTri() * w * (SPREAD_X / 2);
-    const y = h * BASE_Y + randTri() * h * (SPREAD_Y / 2);
+    if (!spawnActive) return;
+    const w = particleCv.width, h = particleCv.height;
+    const x = w * 0.60 + randTri() * w * 0.16;
+    const y = h * 0.78 + randTri() * h * 0.09;
     const vy0 = -(120 + Math.random() * 110);
     const vx0 = (Math.random() - 0.5) * 40;
     const life = 2.6 + Math.random() * 1.8;
@@ -147,46 +181,52 @@
       wobble: (Math.random() * 2 + 1) * (Math.random() < 0.5 ? -1 : 1)
     });
     
-    const ms = 700 + Math.random() * 2300;
-    setTimeout(spawnEmber, ms);
+    setTimeout(spawnEmber, 700 + Math.random() * 2300);
   }
-  setTimeout(spawnEmber, 500);
+  setTimeout(spawnEmber, 300);
 
   // ===== 眼睛动画参数 =====
-  const EYES = {
-    openDur: 1200,   // 1.2秒睁开
-    feather: 30,     // 羽化边缘
-    rxScale: 0.15,   // 横向半径
-    ryRatio: 0.35    // 纵向比例
+  const EYES_CONFIG = {
+    duration: 1200,      // 睁眼时长
+    featherSize: 35,     // 羽化边缘大小
+    eyeRadiusX: 0.14,    // 眼睛横向半径（相对屏幕）
+    eyeRadiusYRatio: 0.4, // 纵向半径比例（越小越扁）
+    gapX: 0.18,          // 四个眼睛的间距
+    gapY: 0.20
   };
   
-  function easeOutCubic(x){ return 1 - Math.pow(1 - x, 3); }
+  function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
   function clamp01(v){ return Math.max(0, Math.min(1, v)); }
 
   // ===== 状态机 =====
-  let mode = "main", tStart = 0;
-  let last = performance.now();
+  let mode = "main";  // "main" 或 "opening"
+  let openStartTime = 0;
+  let lastTime = performance.now();
   
   requestAnimationFrame(loop);
 
   function loop(now){
-    const dt = Math.min(0.033, (now - last) / 1000); 
-    last = now;
+    const dt = Math.min(0.033, (now - lastTime) / 1000); 
+    lastTime = now;
 
     if (mode === "main"){
-      drawMain(dt);
-    } else {
-      drawEyes(now);
+      drawMainState(dt);
+    } else if (mode === "opening"){
+      drawOpeningState(now);
     }
+    
     requestAnimationFrame(loop);
   }
 
-  function drawMain(dt){
-    // 纯黑背景
-    ctx.fillStyle = "#000"; 
-    ctx.fillRect(0, 0, cv.width, cv.height);
-
-    // 绘制粒子
+  // 主状态：显示粒子 + 纯黑遮罩
+  function drawMainState(dt){
+    // 遮罩层绘制纯黑
+    maskCtx.fillStyle = "#000";
+    maskCtx.fillRect(0, 0, maskCv.width, maskCv.height);
+    
+    // 粒子层绘制火花
+    particleCtx.clearRect(0, 0, particleCv.width, particleCv.height);
+    
     for (let i = embers.length - 1; i >= 0; i--){
       const p = embers[i];
       p.age += dt; 
@@ -199,98 +239,106 @@
       const alpha = 0.9 * Math.pow(k, 0.7);
       const light = 45 + Math.sin(p.age * 18) * 5;
       
-      ctx.save(); 
-      ctx.globalCompositeOperation = "lighter";
-      ctx.shadowColor = "hsla(" + p.hue + ",100%,60%," + alpha + ")";
-      ctx.shadowBlur = 25;
-      ctx.beginPath(); 
-      ctx.fillStyle = "hsla(" + p.hue + ",100%," + light + "%," + alpha + ")";
-      ctx.arc(p.x, p.y, p.size * (0.8 + 0.7 * k), 0, Math.PI * 2); 
-      ctx.fill(); 
-      ctx.restore();
+      particleCtx.save(); 
+      particleCtx.globalCompositeOperation = "lighter";
+      particleCtx.shadowColor = `hsla(${p.hue},100%,60%,${alpha})`;
+      particleCtx.shadowBlur = 25;
+      particleCtx.beginPath(); 
+      particleCtx.fillStyle = `hsla(${p.hue},100%,${light}%,${alpha})`;
+      particleCtx.arc(p.x, p.y, p.size * (0.8 + 0.7 * k), 0, Math.PI * 2); 
+      particleCtx.fill(); 
+      particleCtx.restore();
       
       if (p.age >= p.life) embers.splice(i, 1);
     }
   }
 
-  // ===== 点击触发 =====
-  addEventListener("click", () => {
+  // 睁眼状态：用 destination-out 挖四个椭圆洞
+  function drawOpeningState(now){
+    const w = maskCv.width, h = maskCv.height;
+    const s = Math.min(w, h);
+    
+    // 先画纯黑遮罩
+    maskCtx.fillStyle = "#000";
+    maskCtx.fillRect(0, 0, w, h);
+    
+    // 计算睁眼进度
+    const elapsed = now - openStartTime;
+    const progress = clamp01(elapsed / EYES_CONFIG.duration);
+    const openScale = easeOutCubic(progress); // 0 -> 1
+    
+    // 用 destination-out 模式挖洞
+    maskCtx.save();
+    maskCtx.globalCompositeOperation = "destination-out";
+    
+    const rxBase = s * EYES_CONFIG.eyeRadiusX;
+    const ryBase = rxBase * EYES_CONFIG.eyeRadiusYRatio;
+    const gapX = s * EYES_CONFIG.gapX;
+    const gapY = s * EYES_CONFIG.gapY;
+    const cx = w * 0.5, cy = h * 0.52;
+    
+    // 四个眼睛的位置
+    const eyePositions = [
+      [cx - gapX, cy - gapY], // 左上
+      [cx + gapX, cy - gapY], // 右上
+      [cx - gapX, cy + gapY], // 左下
+      [cx + gapX, cy + gapY]  // 右下
+    ];
+
+    eyePositions.forEach(([ex, ey]) => {
+      maskCtx.save();
+      maskCtx.translate(ex, ey);
+      maskCtx.scale(1, Math.max(0.001, openScale)); // 纵向缩放模拟睁眼
+      
+      // 绘制实心椭圆（会变成透明洞）
+      maskCtx.beginPath();
+      maskCtx.ellipse(0, 0, rxBase, ryBase, 0, 0, Math.PI * 2);
+      maskCtx.fillStyle = "#fff";
+      maskCtx.fill();
+      
+      // 添加羽化效果（模糊边缘）
+      maskCtx.shadowColor = "#fff";
+      maskCtx.shadowBlur = EYES_CONFIG.featherSize;
+      maskCtx.fill();
+      
+      maskCtx.restore();
+    });
+    
+    maskCtx.restore();
+    
+    // 粒子层清空（睁眼时不显示火花）
+    particleCtx.clearRect(0, 0, particleCv.width, particleCv.height);
+    
+    // 动画结束后关闭页面
+    if (progress >= 1){
+      setTimeout(() => { 
+        debugEl.textContent = "动画完成";
+        // window.close(); // 取消注释以自动关闭
+      }, 100);
+    }
+  }
+
+  // ===== 点击触发睁眼动画 =====
+  addEventListener("click", (e) => {
     if (mode !== "main") return;
-    if (!bgReady) {
-      alert("背景图片还没加载完成，请稍等或检查图片路径");
+    
+    if (!bgImageLoaded){
+      debugEl.textContent = "⚠ 等待图片加载...";
+      debugEl.style.color = "#f00";
       return;
     }
     
-    mode = "eyes"; 
-    tStart = performance.now();
-    spawnOn = false;
-    embers.length = 0;
+    console.log("开始睁眼动画");
+    mode = "opening";
+    openStartTime = performance.now();
+    spawnActive = false;  // 停止生成新粒子
+    embers.length = 0;    // 清空现有粒子
+    
+    // 隐藏文字
     timeEl.style.opacity = 0;
     labelEl.style.opacity = 0;
-    debugEl.style.opacity = 0;
+    debugEl.textContent = "睁眼中...";
   });
-
-  function drawEyes(now){
-    const w = cv.width, h = cv.height, s = Math.min(w, h);
-    
-    // 先画背景图片（铺满整个屏幕）
-    if (bgReady){
-      const iw = bgImg.naturalWidth || bgImg.width;
-      const ih = bgImg.naturalHeight || bgImg.height;
-      const r = Math.max(w / iw, h / ih);
-      const dw = iw * r, dh = ih * r;
-      const dx = (w - dw) / 2, dy = (h - dh) / 2;
-      ctx.drawImage(bgImg, dx, dy, dw, dh);
-    }
-
-    // 盖一层完全不透明的黑色
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, w, h);
-
-    // 用 destination-out 挖四个椭圆洞
-    ctx.save();
-    ctx.globalCompositeOperation = "destination-out";
-    
-    const rxBase = s * EYES.rxScale;
-    const ryBase = rxBase * EYES.ryRatio;
-    const gapX = s * 0.18, gapY = s * 0.20;
-    const cx = w * 0.5, cy = h * 0.52;
-    const centers = [
-      [cx - gapX, cy - gapY], 
-      [cx + gapX, cy - gapY],
-      [cx - gapX, cy + gapY], 
-      [cx + gapX, cy + gapY]
-    ];
-
-    const t = now - tStart;
-    const pOpen = clamp01(t / EYES.openDur);
-    const openY = Math.max(0.001, easeOutCubic(pOpen));
-
-    centers.forEach(([x, y]) => {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.scale(1, openY);
-
-      // 实心洞
-      ctx.beginPath();
-      ctx.ellipse(0, 0, rxBase, ryBase, 0, 0, Math.PI * 2);
-      ctx.fillStyle = "#fff";
-      ctx.fill();
-
-      // 羽化边缘
-      ctx.shadowColor = "#fff";
-      ctx.shadowBlur = EYES.feather;
-      ctx.fill();
-
-      ctx.restore();
-    });
-    ctx.restore();
-
-    // 动画完成后关闭页面
-    if (pOpen >= 1){
-      setTimeout(() => { window.close(); }, 100);
-    }
-  }
 </script>
 </body>
 </html>
