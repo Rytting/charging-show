@@ -327,13 +327,23 @@
     }
   }
 
-  // ===== 点击触发睁眼动画 =====
-  addEventListener("click", (e) => {
-    if (mode !== "main") return;
+  // ===== 点击/触摸触发睁眼动画 =====
+  function startOpening(e) {
+    // 阻止默认行为和冒泡
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    if (mode !== "main") {
+      console.log("已经在动画状态，忽略");
+      return;
+    }
     
     if (!bgImageLoaded){
       debugEl.textContent = "⚠ 等待图片加载...";
       debugEl.style.color = "#f00";
+      console.log("图片未加载完成");
       return;
     }
     
@@ -347,7 +357,11 @@
     timeEl.style.opacity = 0;
     labelEl.style.opacity = 0;
     debugEl.textContent = "睁眼中...";
-  });
+  }
+  
+  // 同时监听 click 和 touchstart
+  document.body.addEventListener("click", startOpening, false);
+  document.body.addEventListener("touchstart", startOpening, {passive: false});
 </script>
 </body>
 </html>
