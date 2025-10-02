@@ -12,7 +12,6 @@
   html, body { margin:0; height:100%; background:#000; overflow:hidden; }
   #wrap { position:relative; width:100%; height:100%; }
 
-  /* TIME — 33%，#f3803d */
   #time {
     position:absolute; top:33%; left:50%; transform:translate(-50%,-60%);
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",Inter,Arial,sans-serif;
@@ -21,14 +20,13 @@
     -webkit-font-smoothing:antialiased; user-select:none;
   }
 
-  /* LABEL */
   #label {
     position:absolute; top:calc(35% + min(15vw,90px)); left:50%; transform:translateX(-50%);
     display:flex; align-items:center; gap:min(6vw, 28px);
     color:#e7e7e7; font-size:min(5.6vw,24px); opacity:.95; user-select:none;
+    cursor: pointer; /* 鼠标悬停时显示可点击 */
   }
 
-  /* 键帽 */
   #key{
     display:inline-block; width:26px; height:26px; line-height:26px; border-radius:5px;
     background:linear-gradient(#4b4b4b,#2f2f2f);
@@ -41,7 +39,19 @@
     color:#e9e9e9; font-weight:700; font-size:14px; text-align:center;
     letter-spacing:.2px; text-shadow:0 -1px 0 rgba(0,0,0,.6);
     font-family:ui-monospace,SFMono-Regular,Menlo,monospace; position:relative; user-select:none;
+    transition: transform 0.1s ease, box-shadow 0.1s ease; /* 点击动画 */
   }
+  
+  /* 点击时的按下效果 */
+  #key:active {
+    transform: scale(0.95);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.14),
+      inset 0 -1px 0 rgba(0,0,0,.55),
+      0 1px 0 rgba(255,255,255,.06),
+      0 1px 3px rgba(0,0,0,.55);
+  }
+  
   #key::before{ content:""; position:absolute; inset:2px; border-radius:4px;
     border:1px solid rgba(255,255,255,.10); box-shadow:inset 0 0 0 1px rgba(0,0,0,.50); }
   #key::after{ content:""; position:absolute; left:3px; top:3px; width:55%; height:42%; border-radius:4px;
@@ -58,7 +68,6 @@
 </div>
 
 <script>
-  // 画布与时间
   const cv = document.getElementById("cv");
   const ctx = cv.getContext("2d",{alpha:true});
   function resize(){ cv.width=innerWidth; cv.height=innerHeight; }
@@ -69,7 +78,6 @@
   function tickTime(){ const d=new Date(); tEl.textContent = pad(d.getHours())+":"+pad(d.getMinutes()); }
   tickTime(); setInterval(tickTime,1000);
 
-  // 火花参数
   const embers=[];
   function randTri(){ return Math.random()+Math.random()-1; }
 
@@ -117,8 +125,35 @@
 
   (function schedule(){ const ms=700+Math.random()*2300; setTimeout(()=>{ spawnEmber(); schedule(); }, ms); })();
 
-  // 轻触退出
-  addEventListener("click", ()=>{ window.close(); });
+  // 点击 E 键或 "Wake Up" 文字关闭
+  const labelEl = document.getElementById("label");
+  
+  function handleClose(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // 添加一个小的视觉反馈
+    labelEl.style.opacity = "0.5";
+    
+    setTimeout(() => {
+      window.close();
+      
+      // 如果 window.close() 不起作用（比如在 Scriptable 里）
+      // 可以尝试用 completion 函数
+      if (typeof completion !== 'undefined') {
+        completion("done");
+      }
+      
+      // 或者跳转到主屏幕（iOS Web App）
+      if (window.navigator.standalone) {
+        window.location.href = "about:blank";
+      }
+    }, 100);
+  }
+  
+  // 同时监听 click 和 touchstart
+  labelEl.addEventListener("click", handleClose);
+  labelEl.addEventListener("touchstart", handleClose, {passive: false});
 </script>
 </body>
 </html>
